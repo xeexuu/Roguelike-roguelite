@@ -46,7 +46,9 @@ func update_mobile_controls_position():
 		mobile_controls.size = viewport_size
 		mobile_controls.position = Vector2.ZERO
 
-# NUEVO: Fondo de jungla en pixel art simple
+# CORRECCIÓN COMPLETA: Reemplazar toda la función create_jungle_background() 
+# en el archivo game_manager.gd (línea aproximada 84-153)
+
 func create_jungle_background():
 	background_node = Node2D.new()
 	background_node.name = "JungleBackground"
@@ -115,9 +117,11 @@ func create_jungle_background():
 	var texture = ImageTexture.create_from_image(image)
 	bg_sprite.texture = texture
 	
+	# CORREGIDO: En Godot 4, usar texture_repeat en lugar de BaseMaterial3D
+	bg_sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	
 	# Hacer el sprite muy grande para cubrir toda el área de juego
 	bg_sprite.scale = Vector2(80, 80)  # 64 * 80 = 5120 píxeles de cobertura
-	bg_sprite.texture_repeat = BaseMaterial3D.TEXTURE_REPEAT_ENABLED
 	bg_sprite.position = Vector2.ZERO
 	
 	background_node.add_child(bg_sprite)

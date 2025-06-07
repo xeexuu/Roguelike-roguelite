@@ -30,8 +30,8 @@ var facing_right: bool = true
 var last_shoot_direction: Vector2 = Vector2.ZERO
 
 # Límites del mapa
-var map_bounds: Rect2 = Rect2(-1500, -1500, 3000, 3000)  # Área jugable
-var camera_bounds: Rect2 = Rect2(-1600, -1600, 3200, 3200)  # Área de cámara (un poco más grande)
+var map_bounds: Rect2 = Rect2(-1500, -1500, 3000, 3000)
+var camera_bounds: Rect2 = Rect2(-1600, -1600, 3200, 3200)
 
 func _ready():
 	is_mobile = OS.has_feature("mobile")
@@ -53,11 +53,10 @@ func setup_camera():
 		camera.enabled = true
 		camera.make_current()
 		if is_mobile:
-			camera.zoom = Vector2(1.5, 1.5)
+			camera.zoom = Vector2(1.2, 1.2)
 		else:
 			camera.zoom = Vector2(2.0, 2.0)
 		
-		# Configurar límites de la cámara
 		setup_camera_limits()
 
 func setup_camera_limits():
@@ -88,27 +87,22 @@ func setup_debug_sprite():
 	
 	for x in range(64):
 		for y in range(64):
-			# Cuerpo principal más grande
 			if x >= 8 and x < 56 and y >= 8 and y < 56:
 				var center_dist = Vector2(x - 32, y - 32).length()
 				if center_dist < 20:
 					image.set_pixel(x, y, Color.CYAN)
 			
-			# Ojos más grandes
 			if (x >= 20 and x < 28 and y >= 20 and y < 28) or (x >= 36 and x < 44 and y >= 20 and y < 28):
 				image.set_pixel(x, y, Color.WHITE)
 			
-			# Línea central más visible
 			if x >= 24 and x < 40 and y >= 30 and y < 38:
 				image.set_pixel(x, y, Color.YELLOW)
 			
-			# Indicador de dirección (flecha hacia la derecha)
 			if x >= 48 and x < 56 and y >= 28 and y < 36:
 				image.set_pixel(x, y, Color.RED)
 	
 	normal_texture = ImageTexture.create_from_image(image)
 	sprite.texture = normal_texture
-	print("Debug sprite created and assigned")
 
 func create_shooting_sprite():
 	var image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
@@ -116,21 +110,17 @@ func create_shooting_sprite():
 	
 	for x in range(64):
 		for y in range(64):
-			# Cuerpo principal
 			if x >= 8 and x < 56 and y >= 8 and y < 56:
 				var center_dist = Vector2(x - 32, y - 32).length()
 				if center_dist < 20:
 					image.set_pixel(x, y, Color.ORANGE)
 			
-			# Ojos
 			if (x >= 20 and x < 28 and y >= 20 and y < 28) or (x >= 36 and x < 44 and y >= 20 and y < 28):
 				image.set_pixel(x, y, Color.WHITE)
 			
-			# Efectos de disparo laterales más visibles
 			if (x >= 0 and x < 16 and y >= 24 and y < 40) or (x >= 48 and x < 64 and y >= 24 and y < 40):
 				image.set_pixel(x, y, Color.YELLOW)
 			
-			# Indicador de dirección mejorado cuando dispara
 			if x >= 50 and x < 60 and y >= 26 and y < 38:
 				image.set_pixel(x, y, Color.RED)
 	
@@ -139,7 +129,7 @@ func create_shooting_sprite():
 func create_debug_ui():
 	debug_label = Label.new()
 	debug_label.text = "Pos: (0, 0)"
-	debug_label.add_theme_font_size_override("font_size", 20)
+	debug_label.add_theme_font_size_override("font_size", 16)
 	debug_label.modulate = Color.YELLOW
 	debug_label.z_index = 100
 	
@@ -162,11 +152,7 @@ func update_debug_label_position():
 	var label_pos = -visible_size * 0.5 + margin
 	
 	debug_label.position = label_pos
-	
-	if is_mobile:
-		debug_label.add_theme_font_size_override("font_size", 16)
-	else:
-		debug_label.add_theme_font_size_override("font_size", 20)
+	debug_label.add_theme_font_size_override("font_size", 14 if is_mobile else 16)
 
 func setup_glow_effect():
 	glow_timer = Timer.new()
@@ -214,16 +200,12 @@ func _on_bullet_fired(bullet: Bullet, direction: Vector2):
 				bullet.sprite.modulate = Color.WHITE
 
 func update_sprite_orientation(shoot_direction: Vector2):
-	# Voltear sprite basado en la dirección de disparo
 	if shoot_direction.x < 0 and facing_right:
-		# Disparando hacia la izquierda
 		facing_right = false
 		sprite.flip_h = true
 	elif shoot_direction.x > 0 and not facing_right:
-		# Disparando hacia la derecha
 		facing_right = true
 		sprite.flip_h = false
-	# Si dispara solo vertical (arriba/abajo), mantener la orientación actual
 
 func create_shooting_flash():
 	sprite.modulate = Color(1.5, 1.5, 1.5, 1.0)
@@ -252,7 +234,6 @@ func _physics_process(_delta):
 func handle_movement():
 	var input_vector = Vector2.ZERO
 	
-	# Combinar input de teclado y móvil
 	if not is_mobile:
 		# Input de teclado (PC)
 		if Input.is_action_pressed("move_left"):
@@ -264,29 +245,27 @@ func handle_movement():
 		if Input.is_action_pressed("move_down"):
 			input_vector.y += 1
 	else:
-		# Input de móvil
+		# Input de móvil - CORREGIDO
 		input_vector = mobile_movement_direction
 	
-	# Aplicar movimiento
-	velocity = input_vector.normalized() * speed
+	# Aplicar movimiento normalizado
+	if input_vector.length() > 0:
+		velocity = input_vector.normalized() * speed
+	else:
+		velocity = Vector2.ZERO
 	
-	# Controlar el flip del sprite basado en la dirección del movimiento
-	# SOLO si no hay disparo reciente que tome prioridad
+	# Controlar orientación del sprite
 	if last_shoot_direction == Vector2.ZERO or not is_shooting_sprite_active:
 		if input_vector.x < 0 and facing_right:
-			# Moviéndose a la izquierda, voltear sprite
 			facing_right = false
 			sprite.flip_h = true
 		elif input_vector.x > 0 and not facing_right:
-			# Moviéndose a la derecha, sprite normal
 			facing_right = true
 			sprite.flip_h = false
 
 func apply_movement_with_bounds():
-	# Aplicar movimiento con move_and_slide
 	move_and_slide()
 	
-	# Aplicar límites del mapa al jugador
 	var clamped_pos = Vector2(
 		clamp(global_position.x, map_bounds.position.x, map_bounds.position.x + map_bounds.size.x),
 		clamp(global_position.y, map_bounds.position.y, map_bounds.position.y + map_bounds.size.y)
@@ -294,7 +273,6 @@ func apply_movement_with_bounds():
 	
 	if global_position != clamped_pos:
 		global_position = clamped_pos
-		# Detener velocidad si chocamos con el límite
 		if global_position.x <= map_bounds.position.x or global_position.x >= map_bounds.position.x + map_bounds.size.x:
 			velocity.x = 0
 		if global_position.y <= map_bounds.position.y or global_position.y >= map_bounds.position.y + map_bounds.size.y:
@@ -322,28 +300,28 @@ func update_debug_ui():
 	if debug_label:
 		var can_shoot_text = "🔫" if shooting_component and shooting_component.can_shoot else "⏳"
 		var sprite_status = "🔥" if is_shooting_sprite_active else "🟦"
-		var mobile_text = "📱" if is_mobile else "🖥️"
 		var facing_text = "◀" if not facing_right else "▶"
 		var bounds_text = "🚧" if is_near_boundary() else "✅"
+		var move_text = "🎮" if mobile_movement_direction != Vector2.ZERO else "⏸️"
 		
 		if is_mobile:
-			debug_label.text = "(%d,%d) %s S:%d %s %s %s" % [
+			debug_label.text = "(%d,%d) %s S:%d %s %s %s %s" % [
 				int(global_position.x), 
 				int(global_position.y),
 				can_shoot_text,
 				bullets_fired,
 				sprite_status,
 				facing_text,
-				bounds_text
+				bounds_text,
+				move_text
 			]
 		else:
-			debug_label.text = "Pos: (%d, %d) | %s | Shots: %d | %s %s | Z: %d | %s %s" % [
+			debug_label.text = "Pos: (%d, %d) | %s | Shots: %d | %s | Z: %d | %s %s" % [
 				int(global_position.x), 
 				int(global_position.y),
 				can_shoot_text,
 				bullets_fired,
 				sprite_status,
-				mobile_text,
 				z_index,
 				facing_text,
 				bounds_text

@@ -1,8 +1,8 @@
 extends Node
 class_name ShootingComponent
 
-@export var bullet_speed: float = 500.0
-@export var fire_rate: float = 0.2
+@export var bullet_speed: float = 600.0
+@export var fire_rate: float = 0.15  # Más rápido para móvil
 @export var bullet_scene: PackedScene
 
 var can_shoot: bool = true
@@ -41,9 +41,16 @@ func shoot(direction: Vector2, start_position: Vector2):
 	bullet.setup(direction, bullet_speed)
 	bullet.global_position = start_position
 	
+	# Obtener la escena principal de forma más robusta
 	var main_scene = get_tree().current_scene
 	if main_scene:
 		main_scene.add_child(bullet)
+		bullet_fired.emit(bullet, direction)
+		can_shoot = false
+		shoot_timer.start()
+	else:
+		# Fallback si no encuentra current_scene
+		get_tree().root.add_child(bullet)
 		bullet_fired.emit(bullet, direction)
 		can_shoot = false
 		shoot_timer.start()

@@ -22,9 +22,15 @@ var glow_timer: Timer
 var base_modulate: Color = Color.WHITE
 var is_mobile: bool
 
+# Variable para movimiento desde móvil
+var mobile_movement_direction: Vector2 = Vector2.ZERO
+
+# Variable para controlar el flip del sprite
+var facing_right: bool = true
+
 func _ready():
 	is_mobile = OS.has_feature("mobile")
-	z_index = 50  # Asegurar que esté muy por encima del fondo
+	z_index = 50
 	
 	setup_sprite_from_file()
 	setup_camera()
@@ -65,7 +71,6 @@ func setup_debug_sprite():
 	var image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
 	image.fill(Color.TRANSPARENT)
 	
-	# Crear un sprite más visible para debug
 	for x in range(64):
 		for y in range(64):
 			# Cuerpo principal más grande
@@ -90,7 +95,6 @@ func create_shooting_sprite():
 	var image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
 	image.fill(Color.TRANSPARENT)
 	
-	# Sprite de disparo más visible
 	for x in range(64):
 		for y in range(64):
 			# Cuerpo principal
@@ -112,41 +116,30 @@ func create_shooting_sprite():
 func create_debug_ui():
 	debug_label = Label.new()
 	debug_label.text = "Pos: (0, 0)"
-	debug_label.add_theme_font_size_override("font_size", 20)  # Reducido para móvil
+	debug_label.add_theme_font_size_override("font_size", 20)
 	debug_label.modulate = Color.YELLOW
 	debug_label.z_index = 100
 	
-	# Configurar anclaje para que se mantenga en una posición fija relativa a la cámara
 	debug_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	
-	# Añadir al nodo de la cámara para que se mueva con ella
 	camera.add_child(debug_label)
-	
-	# Configurar posición inicial
 	update_debug_label_position()
 
 func update_debug_label_position():
 	if not debug_label or not camera:
 		return
 	
-	# Obtener el tamaño del viewport actual
 	var viewport = get_viewport()
 	if not viewport:
 		return
 	
 	var viewport_size = viewport.get_visible_rect().size
 	var zoom = camera.zoom
-	
-	# Calcular el tamaño visible del mundo en coordenadas de cámara
 	var visible_size = viewport_size / zoom
-	
-	# Posicionar el label en la esquina superior izquierda, pero dentro del área visible
-	var margin = Vector2(10, 10) # Margen desde el borde
+	var margin = Vector2(10, 10)
 	var label_pos = -visible_size * 0.5 + margin
 	
 	debug_label.position = label_pos
 	
-	# Asegurar que el texto no sea demasiado largo para la pantalla
 	if is_mobile:
 		debug_label.add_theme_font_size_override("font_size", 16)
 	else:
@@ -212,12 +205,43 @@ func change_to_normal_sprite():
 		is_shooting_sprite_active = false
 
 func _physics_process(_delta):
+	handle_movement()
 	if not is_mobile:
-		handle_movement()
 		handle_shooting()
 	
 	move_and_slide()
 	update_debug_ui()
+
+func handle_movement():
+	var input_vector = Vector2.ZERO
+	
+	# Combinar input de teclado y móvil
+	if not is_mobile:
+		# Input de teclado (PC)
+		if Input.is_action_pressed("move_left"):
+			input_vector.x -= 1
+		if Input.is_action_pressed("move_right"):
+			input_vector.x += 1
+		if Input.is_action_pressed("move_up"):
+			input_vector.y -= 1
+		if Input.is_action_pressed("move_down"):
+			input_vector.y += 1
+	else:
+		# Input de móvil
+		input_vector = mobile_movement_direction
+	
+	# Aplicar movimiento
+	velocity = input_vector.normalized() * speed
+	
+	# Controlar el flip del sprite basado en la dirección del movimiento
+	if input_vector.x < 0 and facing_right:
+		# Moviéndose a la izquierda, voltear sprite
+		facing_right = false
+		sprite.flip_h = true
+	elif input_vector.x > 0 and not facing_right:
+		# Moviéndose a la derecha, sprite normal
+		facing_right = true
+		sprite.flip_h = false
 
 func handle_shooting():
 	if not shooting_component:
@@ -237,45 +261,32 @@ func handle_shooting():
 	if shoot_direction != Vector2.ZERO:
 		shooting_component.try_shoot(shoot_direction, global_position)
 
-func handle_movement():
-	var input_vector = Vector2.ZERO
-	
-	if Input.is_action_pressed("move_left"):
-		input_vector.x -= 1
-	if Input.is_action_pressed("move_right"):
-		input_vector.x += 1
-	if Input.is_action_pressed("move_up"):
-		input_vector.y -= 1
-	if Input.is_action_pressed("move_down"):
-		input_vector.y += 1
-	
-	velocity = input_vector.normalized() * speed
-
 func update_debug_ui():
 	if debug_label:
 		var can_shoot_text = "🔫" if shooting_component and shooting_component.can_shoot else "⏳"
 		var sprite_status = "🔥" if is_shooting_sprite_active else "🟦"
 		var mobile_text = "📱" if is_mobile else "🖥️"
+		var facing_text = "◀" if not facing_right else "▶"
 		
-		# Texto más corto para móvil
 		if is_mobile:
-			debug_label.text = "(%d,%d) %s S:%d %s" % [
+			debug_label.text = "(%d,%d) %s S:%d %s %s" % [
 				int(global_position.x), 
 				int(global_position.y),
 				can_shoot_text,
 				bullets_fired,
-				sprite_status
+				sprite_status,
+				facing_text
 			]
 		else:
-			debug_label.text = "Pos: (%d, %d) | %s | Shots: %d | %s %s | Z: %d" % [
+			debug_label.text = "Pos: (%d, %d) | %s | Shots: %d | %s %s | Z: %d | %s" % [
 				int(global_position.x), 
 				int(global_position.y),
 				can_shoot_text,
 				bullets_fired,
 				sprite_status,
 				mobile_text,
-				z_index
+				z_index,
+				facing_text
 			]
 		
-		# Actualizar posición del label cada cierto tiempo para evitar que se salga
 		update_debug_label_position()

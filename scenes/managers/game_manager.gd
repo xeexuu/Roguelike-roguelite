@@ -45,42 +45,34 @@ func update_mobile_controls_position():
 		mobile_controls.position = Vector2.ZERO
 
 func create_optimized_background():
-	# Crear el fondo como Node2D en lugar de CanvasLayer
 	background_node = Node2D.new()
 	background_node.name = "OptimizedBackground"
-	background_node.z_index = -100  # Muy por detrás del jugador
-	
-	# Añadir al nodo principal, NO al UIManager
+	background_node.z_index = -100
 	add_child(background_node)
 	
-	# Crear el fondo de color
 	var background_sprite = Sprite2D.new()
 	background_sprite.name = "BackgroundSprite"
 	
-	# Crear una textura de fondo grande
 	var image = Image.create(4000, 4000, false, Image.FORMAT_RGBA8)
 	image.fill(Color(0.05, 0.05, 0.15, 1.0))
 	var texture = ImageTexture.create_from_image(image)
 	
 	background_sprite.texture = texture
-	background_sprite.position = Vector2.ZERO  # Centrado en el origen
+	background_sprite.position = Vector2.ZERO
 	background_sprite.z_index = -100
 	
 	background_node.add_child(background_sprite)
-	
 	create_simple_pattern_overlay(background_node)
 
 func create_simple_pattern_overlay(parent: Node2D):
 	var pattern = Node2D.new()
 	pattern.name = "Pattern"
-	pattern.z_index = -90  # Por encima del fondo pero detrás del jugador
+	pattern.z_index = -90
 	parent.add_child(pattern)
 	
-	# Crear algunos puntos de referencia más visibles
 	for i in range(50):
 		var dot = Sprite2D.new()
 		
-		# Crear textura para el punto
 		var dot_image = Image.create(6, 6, false, Image.FORMAT_RGBA8)
 		dot_image.fill(Color(0.0, 0.8, 1.0, 0.5))
 		var dot_texture = ImageTexture.create_from_image(dot_image)
@@ -102,10 +94,8 @@ func setup_player():
 	if player_manager.get_child_count() > 0:
 		player = player_manager.get_child(0) as Player
 		if player:
-			# Posición inicial centrada en el origen del mundo
 			player.global_position = Vector2(0, 0)
-			player.z_index = 10  # Por encima del fondo
-			
+			player.z_index = 10
 			print("Player setup - Position: ", player.global_position, " Z-index: ", player.z_index)
 
 func setup_mobile_controls():
@@ -115,7 +105,7 @@ func setup_mobile_controls():
 	mobile_controls = Control.new()
 	mobile_controls.name = "MobileControls"
 	mobile_controls.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mobile_controls.z_index = 100  # Por encima de todo
+	mobile_controls.z_index = 100
 	ui_manager.add_child(mobile_controls)
 	
 	create_movement_joystick()
@@ -159,51 +149,59 @@ func create_movement_joystick():
 
 func create_shooting_buttons():
 	var viewport_size = get_viewport().get_visible_rect().size
-	
 	var shoot_size = Vector2(80, 80)
+	var margin = 20  # Margen desde el borde
 	
-	var shoot_up = create_shoot_button("↑", Color.CYAN)
+	# Posicionar botones en forma de cruz, asegurando que estén dentro de la pantalla
+	var base_x = viewport_size.x - shoot_size.x - margin
+	var base_y = viewport_size.y - shoot_size.y - margin
+	
+	# Botón arriba
+	var shoot_up = create_shoot_button("↑", Color.CYAN, 0.4)  # Más transparente
 	shoot_up.size = shoot_size
-	shoot_up.position = Vector2(viewport_size.x - 150, viewport_size.y - 300)
+	shoot_up.position = Vector2(base_x, base_y - shoot_size.y - 20)  # Arriba del centro
 	shoot_up.pressed.connect(_on_shoot_button_pressed.bind(Vector2.UP))
 	shoot_up.button_up.connect(_on_shoot_button_released.bind(Vector2.UP))
 	mobile_controls.add_child(shoot_up)
 	
-	var shoot_left = create_shoot_button("←", Color.YELLOW)
+	# Botón izquierda
+	var shoot_left = create_shoot_button("←", Color.YELLOW, 0.4)
 	shoot_left.size = shoot_size
-	shoot_left.position = Vector2(viewport_size.x - 230, viewport_size.y - 220)
+	shoot_left.position = Vector2(base_x - shoot_size.x - 20, base_y)  # Izquierda del centro
 	shoot_left.pressed.connect(_on_shoot_button_pressed.bind(Vector2.LEFT))
 	shoot_left.button_up.connect(_on_shoot_button_released.bind(Vector2.LEFT))
 	mobile_controls.add_child(shoot_left)
 	
-	var shoot_right = create_shoot_button("→", Color.YELLOW)
+	# Botón derecha
+	var shoot_right = create_shoot_button("→", Color.YELLOW, 0.4)
 	shoot_right.size = shoot_size
-	shoot_right.position = Vector2(viewport_size.x - 70, viewport_size.y - 220)
+	shoot_right.position = Vector2(base_x + shoot_size.x + 20, base_y)  # Derecha del centro
 	shoot_right.pressed.connect(_on_shoot_button_pressed.bind(Vector2.RIGHT))
 	shoot_right.button_up.connect(_on_shoot_button_released.bind(Vector2.RIGHT))
 	mobile_controls.add_child(shoot_right)
 	
-	var shoot_down = create_shoot_button("↓", Color.CYAN)
+	# Botón abajo
+	var shoot_down = create_shoot_button("↓", Color.CYAN, 0.4)
 	shoot_down.size = shoot_size
-	shoot_down.position = Vector2(viewport_size.x - 150, viewport_size.y - 140)
+	shoot_down.position = Vector2(base_x, base_y + shoot_size.y + 20)  # Abajo del centro
 	shoot_down.pressed.connect(_on_shoot_button_pressed.bind(Vector2.DOWN))
 	shoot_down.button_up.connect(_on_shoot_button_released.bind(Vector2.DOWN))
 	mobile_controls.add_child(shoot_down)
 
-func create_shoot_button(text: String, color: Color) -> Button:
+func create_shoot_button(text: String, color: Color, alpha: float = 0.6) -> Button:
 	var button = Button.new()
 	button.text = text
 	button.flat = false
 	
 	var style_normal = StyleBoxFlat.new()
-	style_normal.bg_color = Color(color.r, color.g, color.b, 0.6)
+	style_normal.bg_color = Color(color.r, color.g, color.b, alpha)  # Usar alpha personalizado
 	style_normal.corner_radius_top_left = 10
 	style_normal.corner_radius_top_right = 10
 	style_normal.corner_radius_bottom_left = 10
 	style_normal.corner_radius_bottom_right = 10
 	
 	var style_pressed = StyleBoxFlat.new()
-	style_pressed.bg_color = Color(color.r, color.g, color.b, 0.9)
+	style_pressed.bg_color = Color(color.r, color.g, color.b, alpha + 0.3)  # Más visible al presionar
 	style_pressed.corner_radius_top_left = 10
 	style_pressed.corner_radius_top_right = 10
 	style_pressed.corner_radius_bottom_left = 10
@@ -259,11 +257,14 @@ func simulate_mobile_input():
 	if not player:
 		return
 	
+	# CORRECCIÓN: Aplicar movimiento directamente al velocity del jugador
+	# en lugar de overwrite completo
 	if current_movement_direction != Vector2.ZERO:
-		player.velocity = current_movement_direction * player.speed
+		player.mobile_movement_direction = current_movement_direction
 	else:
-		player.velocity = Vector2.ZERO
+		player.mobile_movement_direction = Vector2.ZERO
 	
+	# Manejar disparos de móvil
 	for direction in active_shoot_directions:
 		if player.shooting_component:
 			player.shooting_component.try_shoot(direction, player.global_position)

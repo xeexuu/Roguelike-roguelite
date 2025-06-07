@@ -25,8 +25,13 @@ var is_mobile: bool
 # Variable para movimiento desde móvil
 var mobile_movement_direction: Vector2 = Vector2.ZERO
 
-# Variable para controlar el flip del sprite
+# Variables para controlar el flip del sprite
 var facing_right: bool = true
+var last_shoot_direction: Vector2 = Vector2.ZERO
+
+# Límites del mapa
+var map_bounds: Rect2 = Rect2(-1500, -1500, 3000, 3000)  # Área jugable
+var camera_bounds: Rect2 = Rect2(-1600, -1600, 3200, 3200)  # Área de cámara (un poco más grande)
 
 func _ready():
 	is_mobile = OS.has_feature("mobile")
@@ -51,6 +56,16 @@ func setup_camera():
 			camera.zoom = Vector2(1.5, 1.5)
 		else:
 			camera.zoom = Vector2(2.0, 2.0)
+		
+		# Configurar límites de la cámara
+		setup_camera_limits()
+
+func setup_camera_limits():
+	if camera:
+		camera.limit_left = int(camera_bounds.position.x)
+		camera.limit_top = int(camera_bounds.position.y)
+		camera.limit_right = int(camera_bounds.position.x + camera_bounds.size.x)
+		camera.limit_bottom = int(camera_bounds.position.y + camera_bounds.size.y)
 
 func setup_sprite_from_file():
 	normal_texture = load("res://sprites/player/player.png")
@@ -86,6 +101,10 @@ func setup_debug_sprite():
 			# Línea central más visible
 			if x >= 24 and x < 40 and y >= 30 and y < 38:
 				image.set_pixel(x, y, Color.YELLOW)
+			
+			# Indicador de dirección (flecha hacia la derecha)
+			if x >= 48 and x < 56 and y >= 28 and y < 36:
+				image.set_pixel(x, y, Color.RED)
 	
 	normal_texture = ImageTexture.create_from_image(image)
 	sprite.texture = normal_texture
@@ -110,6 +129,10 @@ func create_shooting_sprite():
 			# Efectos de disparo laterales más visibles
 			if (x >= 0 and x < 16 and y >= 24 and y < 40) or (x >= 48 and x < 64 and y >= 24 and y < 40):
 				image.set_pixel(x, y, Color.YELLOW)
+			
+			# Indicador de dirección mejorado cuando dispara
+			if x >= 50 and x < 60 and y >= 26 and y < 38:
+				image.set_pixel(x, y, Color.RED)
 	
 	shooting_texture = ImageTexture.create_from_image(image)
 
@@ -174,6 +197,8 @@ func setup_shooting():
 
 func _on_bullet_fired(bullet: Bullet, direction: Vector2):
 	bullets_fired += 1
+	last_shoot_direction = direction
+	update_sprite_orientation(direction)
 	change_to_shooting_sprite()
 	
 	if not is_mobile:
@@ -187,6 +212,18 @@ func _on_bullet_fired(bullet: Bullet, direction: Vector2):
 				bullet.sprite.modulate = Color.YELLOW
 			_:
 				bullet.sprite.modulate = Color.WHITE
+
+func update_sprite_orientation(shoot_direction: Vector2):
+	# Voltear sprite basado en la dirección de disparo
+	if shoot_direction.x < 0 and facing_right:
+		# Disparando hacia la izquierda
+		facing_right = false
+		sprite.flip_h = true
+	elif shoot_direction.x > 0 and not facing_right:
+		# Disparando hacia la derecha
+		facing_right = true
+		sprite.flip_h = false
+	# Si dispara solo vertical (arriba/abajo), mantener la orientación actual
 
 func create_shooting_flash():
 	sprite.modulate = Color(1.5, 1.5, 1.5, 1.0)
@@ -209,7 +246,7 @@ func _physics_process(_delta):
 	if not is_mobile:
 		handle_shooting()
 	
-	move_and_slide()
+	apply_movement_with_bounds()
 	update_debug_ui()
 
 func handle_movement():
@@ -234,14 +271,34 @@ func handle_movement():
 	velocity = input_vector.normalized() * speed
 	
 	# Controlar el flip del sprite basado en la dirección del movimiento
-	if input_vector.x < 0 and facing_right:
-		# Moviéndose a la izquierda, voltear sprite
-		facing_right = false
-		sprite.flip_h = true
-	elif input_vector.x > 0 and not facing_right:
-		# Moviéndose a la derecha, sprite normal
-		facing_right = true
-		sprite.flip_h = false
+	# SOLO si no hay disparo reciente que tome prioridad
+	if last_shoot_direction == Vector2.ZERO or not is_shooting_sprite_active:
+		if input_vector.x < 0 and facing_right:
+			# Moviéndose a la izquierda, voltear sprite
+			facing_right = false
+			sprite.flip_h = true
+		elif input_vector.x > 0 and not facing_right:
+			# Moviéndose a la derecha, sprite normal
+			facing_right = true
+			sprite.flip_h = false
+
+func apply_movement_with_bounds():
+	# Aplicar movimiento con move_and_slide
+	move_and_slide()
+	
+	# Aplicar límites del mapa al jugador
+	var clamped_pos = Vector2(
+		clamp(global_position.x, map_bounds.position.x, map_bounds.position.x + map_bounds.size.x),
+		clamp(global_position.y, map_bounds.position.y, map_bounds.position.y + map_bounds.size.y)
+	)
+	
+	if global_position != clamped_pos:
+		global_position = clamped_pos
+		# Detener velocidad si chocamos con el límite
+		if global_position.x <= map_bounds.position.x or global_position.x >= map_bounds.position.x + map_bounds.size.x:
+			velocity.x = 0
+		if global_position.y <= map_bounds.position.y or global_position.y >= map_bounds.position.y + map_bounds.size.y:
+			velocity.y = 0
 
 func handle_shooting():
 	if not shooting_component:
@@ -267,18 +324,20 @@ func update_debug_ui():
 		var sprite_status = "🔥" if is_shooting_sprite_active else "🟦"
 		var mobile_text = "📱" if is_mobile else "🖥️"
 		var facing_text = "◀" if not facing_right else "▶"
+		var bounds_text = "🚧" if is_near_boundary() else "✅"
 		
 		if is_mobile:
-			debug_label.text = "(%d,%d) %s S:%d %s %s" % [
+			debug_label.text = "(%d,%d) %s S:%d %s %s %s" % [
 				int(global_position.x), 
 				int(global_position.y),
 				can_shoot_text,
 				bullets_fired,
 				sprite_status,
-				facing_text
+				facing_text,
+				bounds_text
 			]
 		else:
-			debug_label.text = "Pos: (%d, %d) | %s | Shots: %d | %s %s | Z: %d | %s" % [
+			debug_label.text = "Pos: (%d, %d) | %s | Shots: %d | %s %s | Z: %d | %s %s" % [
 				int(global_position.x), 
 				int(global_position.y),
 				can_shoot_text,
@@ -286,7 +345,15 @@ func update_debug_ui():
 				sprite_status,
 				mobile_text,
 				z_index,
-				facing_text
+				facing_text,
+				bounds_text
 			]
 		
 		update_debug_label_position()
+
+func is_near_boundary() -> bool:
+	var margin = 100
+	return (global_position.x <= map_bounds.position.x + margin or 
+			global_position.x >= map_bounds.position.x + map_bounds.size.x - margin or
+			global_position.y <= map_bounds.position.y + margin or 
+			global_position.y >= map_bounds.position.y + map_bounds.size.y - margin)
